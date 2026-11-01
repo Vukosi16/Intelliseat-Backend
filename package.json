@@ -6,10 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "node --env-file=.env.local scripts/seed.js",
+    "seed:reset": "node --env-file=.env.local scripts/seed.js --reset",
+    "configure:labs": "node --env-file=.env.local scripts/configure-labs.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.4",
     "next": "16.4.3",
+    "nodemailer": "^10.3.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
