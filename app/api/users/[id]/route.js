@@ -90,7 +90,7 @@ export async function PATCH(request, { params }) {
     }
     if (body.email !== undefined) {
       const email = normalizeEmail(body.email);
-      if (!email || !email.endsWith('@my.richfield.ac.za')) {
+      if (!email || (user.role === 'student' && !email.endsWith('@my.richfield.ac.za'))) {
         return NextResponse.json({ message: 'Use an institutional @my.richfield.ac.za email address' }, { status: 400 });
       }
       updates.email = email;

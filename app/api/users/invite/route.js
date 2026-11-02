@@ -45,14 +45,13 @@ export async function POST(request) {
     }
 
     const normalizedEmail = normalizeEmail(email);
-    const allowsExternalInvigilatorEmail = role === 'invigilator'
-      && process.env.ALLOW_NON_INSTITUTIONAL_INVIGILATOR_EMAILS === 'true';
+    const allowsExternalInvigilatorEmail = role === 'invigilator';
     if (
       !normalizedEmail
       || (!normalizedEmail.endsWith('@my.richfield.ac.za') && !allowsExternalInvigilatorEmail)
     ) {
       return NextResponse.json(
-        { message: 'Use an institutional @my.richfield.ac.za email address' },
+        { message: role === 'invigilator' ? 'Enter a valid email address' : 'Use an institutional @my.richfield.ac.za email address' },
         { status: 400 }
       );
     }
