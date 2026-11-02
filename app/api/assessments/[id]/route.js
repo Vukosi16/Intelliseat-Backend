@@ -17,6 +17,7 @@ import {
 } from '../../../../models';
 
 const { requireAuth } = require('../../../../lib/auth');
+const { parseScheduleDate } = require('../../../../lib/time');
 
 async function getPopulatedAssessment(id) {
   return Assessment.findById(id)
@@ -130,8 +131,8 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ message: 'Complete all required assessment fields with valid values.' }, { status: 400 });
     }
 
-    const startDate = new Date(startsAt);
-    const endDate = new Date(endsAt);
+    const startDate = parseScheduleDate(startsAt);
+    const endDate = parseScheduleDate(endsAt);
     if (endDate <= startDate) {
       return NextResponse.json({ message: 'The end time must be after the start time' }, { status: 400 });
     }

@@ -15,6 +15,7 @@ import {
 } from '../../../models';
 
 const { requireAuth } = require('../../../lib/auth');
+const { parseScheduleDate } = require('../../../lib/time');
 
 export async function GET(request) {
   try {
@@ -141,8 +142,8 @@ export async function POST(request) {
         isActive: true,
       });
     }
-    const startDate = new Date(startsAt);
-    const endDate = new Date(endsAt);
+    const startDate = parseScheduleDate(startsAt);
+    const endDate = parseScheduleDate(endsAt);
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return NextResponse.json({ message: 'Invalid startsAt or endsAt date format' }, { status: 400 });
