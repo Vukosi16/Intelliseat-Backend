@@ -19,6 +19,7 @@ import {
   PcStatusLog,
   COURSES,
   CLEARANCE_STATUSES,
+  ELIGIBILITY,
   isValidQualificationYear,
 } from '../../../../models';
 
@@ -115,6 +116,15 @@ export async function PATCH(request, { params }) {
           return NextResponse.json({ message: 'Clearance status is invalid' }, { status: 400 });
         }
         updates.clearanceStatus = body.clearanceStatus;
+      }
+      if (body.eligibility !== undefined) {
+        if (typeof body.eligibility !== 'string' || !ELIGIBILITY.includes(body.eligibility)) {
+          return NextResponse.json({ message: 'Eligibility status is invalid' }, { status: 400 });
+        }
+        updates.eligibility = body.eligibility;
+        updates.eligibilityReason = body.eligibilityReason ? String(body.eligibilityReason).trim() : undefined;
+        updates.eligibilityReviewedBy = userId;
+        updates.eligibilityReviewedAt = new Date();
       }
     } else {
       if (body.staffNumber !== undefined && !isStaffNumber(body.staffNumber)) {
