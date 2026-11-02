@@ -11,7 +11,7 @@ export async function POST(request, { params }) {
     if (role !== 'invigilator' && role !== 'admin') return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     const { studentId } = await request.json();
     const { id } = await params;
-    const assessment = await Assessment.findById(id).select('venueId cancelledAt');
+    const assessment = await Assessment.findById(id).select('venueId startsAt endsAt cancelledAt');
     if (!assessment || assessment.cancelledAt) {
       return NextResponse.json({ message: 'Active assessment not found' }, { status: 404 });
     }
@@ -19,8 +19,21 @@ export async function POST(request, { params }) {
     if (!allocation) return NextResponse.json({ message: 'Active seat allocation not found' }, { status: 404 });
     const occupied = await SeatAllocation.find({ assessmentId: id, status: { $ne: 'expelled' } }).select('seatId');
     const occupiedIds = occupied.map((item) => item.seatId);
+    const overlappingAssessments = await Assessment.find({
+      venueId: assessment.venueId,
+      cancelledAt: null,
+      startsAt: { $lt: assessment.endsAt },
+      endsAt: { $gt: assessment.startsAt },
+      _id: { $ne: assessment._id },
+    }).select('_id').lean();
+    const overlappingSeatIds = overlappingAssessments.length
+      ? await SeatAllocation.distinct('seatId', {
+        assessmentId: { $in: overlappingAssessments.map((item) => item._id) },
+        holdsSeat: true,
+      })
+      : [];
     const newSeat = await Seat.findOne({
-      _id: { $nin: occupiedIds },
+      _id: { $nin: [...occupiedIds, ...overlappingSeatIds] },
       venueId: assessment.venueId,
       condition: 'working',
       isActive: true,

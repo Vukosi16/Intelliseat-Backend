@@ -85,16 +85,6 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ message: 'Assessment is already active' }, { status: 409 });
       }
 
-      const overlap = await Assessment.findOverlapping(
-        assessment.venueId,
-        assessment.startsAt,
-        assessment.endsAt,
-        assessment._id
-      );
-      if (overlap) {
-        return NextResponse.json({ message: 'A conflicting assessment is already scheduled in this venue.' }, { status: 409 });
-      }
-
       assessment.cancelledAt = null;
       assessment.cancelReason = null;
       assessment.invigilatorIds = [];
@@ -177,10 +167,6 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({
         message: `The selected venue has ${workingSeatCount} working seat(s), but ${eligibleStudentCount} eligible student(s) are in this qualification and year.`,
       }, { status: 409 });
-    }
-    const venueOverlap = await Assessment.findOverlapping(venueId, startDate, endDate, id);
-    if (venueOverlap) {
-      return NextResponse.json({ message: 'A conflicting assessment is already scheduled in this venue for the selected time.' }, { status: 409 });
     }
     let selectedModule = await Module.findOne({
       course: resolvedQualification,

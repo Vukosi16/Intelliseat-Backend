@@ -176,15 +176,6 @@ export async function POST(request) {
       return NextResponse.json({ message: 'The selected venue has no working seats' }, { status: 409 });
     }
 
-    // Prevent venue double-booking; assessments are open to every invigilator.
-    const overlapping = await Assessment.findOverlapping(venueId, startDate, endDate);
-    if (overlapping) {
-      return NextResponse.json(
-        { message: 'A conflicting assessment is already scheduled in this venue for the selected time.' },
-        { status: 409 }
-      );
-    }
-
     const enrolledCount = await User.countDocuments({
       role: 'student',
       course: { $in: qualificationVariants(resolvedQualification) },
