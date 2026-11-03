@@ -21,6 +21,7 @@ import {
   CLEARANCE_STATUSES,
   ELIGIBILITY,
   isValidQualificationYear,
+  qualificationsMatch,
 } from '../../../../models';
 
 const { requireAuth } = require('../../../../lib/auth');
@@ -125,6 +126,22 @@ export async function PATCH(request, { params }) {
         updates.eligibilityReason = body.eligibilityReason ? String(body.eligibilityReason).trim() : undefined;
         updates.eligibilityReviewedBy = userId;
         updates.eligibilityReviewedAt = new Date();
+      }
+
+      if (body.course !== undefined || body.year !== undefined) {
+        const futureAllocations = await SeatAllocation.find({ studentId: user._id })
+          .select('_id assessmentId')
+          .populate('assessmentId', 'qualification qualificationYear startsAt')
+          .lean();
+        const staleAllocationIds = futureAllocations
+          .filter((allocation) => allocation.assessmentId
+            && allocation.assessmentId.startsAt >= new Date()
+            && (!qualificationsMatch(nextCourse, allocation.assessmentId.qualification)
+              || Number(nextYear) !== Number(allocation.assessmentId.qualificationYear)))
+          .map((allocation) => allocation._id);
+        if (staleAllocationIds.length) {
+          await SeatAllocation.deleteMany({ _id: { $in: staleAllocationIds } });
+        }
       }
     } else {
       if (body.staffNumber !== undefined && !isStaffNumber(body.staffNumber)) {

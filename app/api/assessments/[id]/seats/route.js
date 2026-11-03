@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import connectDB from '../../../../../lib/db';
-import { Assessment, Seat, SeatAllocation } from '../../../../../models';
+import { Assessment, Seat, SeatAllocation, qualificationsMatch } from '../../../../../models';
 import ensureLabSeats from '../../../../../lib/ensureLabSeats';
 
 const { requireAuth } = require('../../../../../lib/auth');
@@ -11,19 +11,22 @@ export async function GET(request, { params }) {
     const { role } = requireAuth(request);
     if (role !== 'invigilator' && role !== 'admin') return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     const { id } = await params;
-    const assessment = await Assessment.findById(id).select('venueId');
+    const assessment = await Assessment.findById(id).select('venueId qualification qualificationYear');
     if (!assessment) return NextResponse.json({ message: 'Assessment not found' }, { status: 404 });
     await ensureLabSeats(assessment.venueId);
 
     const [seats, allocations] = await Promise.all([
       Seat.find({ venueId: assessment.venueId, isActive: true }).sort({ number: 1 }).lean(),
       SeatAllocation.find({ assessmentId: id, status: { $ne: 'expelled' } })
-      .populate('studentId', 'firstName lastName studentNumber eligibility')
+      .populate('studentId', 'firstName lastName studentNumber eligibility course year')
       .populate('seatId', 'label number condition')
       .sort({ 'seatId.number': 1 })
       .lean(),
     ]);
-    const allocationBySeat = new Map(allocations.map((allocation) => [
+    const currentAllocations = allocations.filter((allocation) => allocation.studentId
+      && qualificationsMatch(allocation.studentId.course, assessment.qualification)
+      && Number(allocation.studentId.year) === Number(assessment.qualificationYear));
+    const allocationBySeat = new Map(currentAllocations.map((allocation) => [
       String(allocation.seatId?._id),
       allocation,
     ]));
