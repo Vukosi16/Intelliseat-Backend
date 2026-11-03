@@ -18,6 +18,7 @@ import {
 
 const { requireAuth } = require('../../../../lib/auth');
 const { parseScheduleDate } = require('../../../../lib/time');
+const { formatAssessmentResponse } = require('../../../../lib/assessmentDisplay');
 
 async function getPopulatedAssessment(id) {
   return Assessment.findById(id)
@@ -59,7 +60,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json(assessment);
+    return NextResponse.json(formatAssessmentResponse(assessment));
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json({ message: err.message }, { status });
@@ -97,7 +98,7 @@ export async function PATCH(request, { params }) {
         entityId: assessment._id,
         details: { restored: true },
       });
-      return NextResponse.json(await getPopulatedAssessment(id));
+      return NextResponse.json(formatAssessmentResponse(await getPopulatedAssessment(id)));
     }
 
     const {
@@ -215,7 +216,7 @@ export async function PATCH(request, { params }) {
       entityId: assessment._id,
       details: { name: assessment.name, venueId, startsAt: startDate, endsAt: endDate },
     });
-    return NextResponse.json(await getPopulatedAssessment(id));
+    return NextResponse.json(formatAssessmentResponse(await getPopulatedAssessment(id)));
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : err.message === 'Forbidden' ? 403 : err.code === 11000 ? 409 : 500;
     return NextResponse.json({ message: err.message }, { status });

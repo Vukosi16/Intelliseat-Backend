@@ -16,6 +16,7 @@ import {
 
 const { requireAuth } = require('../../../lib/auth');
 const { parseScheduleDate } = require('../../../lib/time');
+const { formatAssessmentResponse } = require('../../../lib/assessmentDisplay');
 
 export async function GET(request) {
   try {
@@ -48,7 +49,7 @@ export async function GET(request) {
       .populate('moduleId', 'code name')
       .populate('venueId', 'name');
 
-    return NextResponse.json(assessments);
+    return NextResponse.json(assessments.map(formatAssessmentResponse));
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : err.code === 11000 ? 409 : 500;
     return NextResponse.json({ message: err.message }, { status });
