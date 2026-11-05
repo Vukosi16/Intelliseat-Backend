@@ -6,8 +6,27 @@ const { requireAuth } = require('../../../../lib/auth');
 const { createCode } = require('../../../../lib/authCodes');
 const { sendEmail } = require('../../../../lib/email');
 const { inviteEmail } = require('../../../../lib/emailTemplates');
-const { normalizeEmail, isStudentNumber, isStaffNumber } = require('../../../../lib/validate');
+const { normalizeEmail, isStudentNumber } = require('../../../../lib/validate');
 const { isValidQualificationYear } = require('../../../../models/constants');
+
+async function createInvigilator(userData) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const users = await User.find({ staffNumber: /^INV-\d+$/ }).select('staffNumber').lean();
+    const highestNumber = users.reduce((highest, user) => {
+      const number = Number(user.staffNumber.slice(4));
+      return Number.isFinite(number) ? Math.max(highest, number) : highest;
+    }, 0);
+    const generatedStaffNumber = `INV-${String(highestNumber + 1).padStart(5, '0')}`;
+
+    try {
+      return await User.create({ ...userData, staffNumber: generatedStaffNumber });
+    } catch (err) {
+      if (err.code !== 11000 || !err.keyPattern?.staffNumber) throw err;
+    }
+  }
+
+  throw new Error('Could not generate a unique staff number');
+}
 
 export async function POST(request) {
   try {
@@ -27,7 +46,6 @@ export async function POST(request) {
       studentNumber,
       course,
       year,
-      staffNumber,
       department,
       phone,
     } = body || {};
@@ -82,18 +100,19 @@ export async function POST(request) {
       userData.course = course;
       userData.year = Number(year);
     } else if (role === 'invigilator') {
-      if (!isStaffNumber(staffNumber) || typeof department !== 'string' || typeof phone !== 'string') {
+      if (typeof department !== 'string' || typeof phone !== 'string') {
         return NextResponse.json(
-          { message: 'staffNumber, department, and phone are required for invigilator' },
+          { message: 'department and phone are required for invigilator' },
           { status: 400 }
         );
       }
-      userData.staffNumber = staffNumber.trim().toUpperCase();
       userData.department = department.trim();
       userData.phone = phone.trim();
     }
 
-    const user = await User.create(userData);
+    const user = role === 'invigilator'
+      ? await createInvigilator(userData)
+      : await User.create(userData);
 
     const { code } = await createCode(user._id, 'invite');
     const emailResult = await sendEmail({

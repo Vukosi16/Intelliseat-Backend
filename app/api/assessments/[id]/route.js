@@ -22,6 +22,7 @@ const { formatAssessmentResponse } = require('../../../../lib/assessmentDisplay'
 
 async function getPopulatedAssessment(id) {
   return Assessment.findById(id)
+    .select('+examPassword')
     .populate('moduleId', 'code name course year')
     .populate('venueId', 'name type building');
 }
@@ -37,6 +38,7 @@ export async function GET(request, { params }) {
 
     const { id } = await params;
     const assessment = await Assessment.findById(id)
+      .select('+examPassword')
       .populate('moduleId', 'code name course year')
       .populate('venueId', 'name type building');
 
@@ -60,7 +62,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json(formatAssessmentResponse(assessment));
+    return NextResponse.json(formatAssessmentResponse(assessment, { role }));
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json({ message: err.message }, { status });
@@ -98,7 +100,7 @@ export async function PATCH(request, { params }) {
         entityId: assessment._id,
         details: { restored: true },
       });
-      return NextResponse.json(formatAssessmentResponse(await getPopulatedAssessment(id)));
+      return NextResponse.json(formatAssessmentResponse(await getPopulatedAssessment(id), { role }));
     }
 
     const {
@@ -111,6 +113,7 @@ export async function PATCH(request, { params }) {
       endsAt,
       venueId,
       instructions,
+      examPassword,
     } = body || {};
     if (
       typeof moduleName !== 'string'
@@ -128,6 +131,7 @@ export async function PATCH(request, { params }) {
       || typeof venueId !== 'string'
       || !mongoose.isValidObjectId(venueId)
       || (instructions !== undefined && typeof instructions !== 'string')
+      || (examPassword !== undefined && typeof examPassword !== 'string')
     ) {
       return NextResponse.json({ message: 'Complete all required assessment fields with valid values.' }, { status: 400 });
     }
@@ -136,6 +140,9 @@ export async function PATCH(request, { params }) {
     const endDate = parseScheduleDate(endsAt);
     if (endDate <= startDate) {
       return NextResponse.json({ message: 'The end time must be after the start time' }, { status: 400 });
+    }
+    if (type === 'Exam' && !examPassword?.trim()) {
+      return NextResponse.json({ message: 'An exam password is required for exams' }, { status: 400 });
     }
 
     const resolvedQualification = qualification.trim();
@@ -207,6 +214,7 @@ export async function PATCH(request, { params }) {
     assessment.venueId = venueId;
     assessment.invigilatorIds = [];
     assessment.instructions = instructions?.trim() || undefined;
+    assessment.examPassword = examPassword?.trim() || undefined;
     await assessment.save();
 
     await AuditLog.create({
@@ -216,7 +224,7 @@ export async function PATCH(request, { params }) {
       entityId: assessment._id,
       details: { name: assessment.name, venueId, startsAt: startDate, endsAt: endDate },
     });
-    return NextResponse.json(formatAssessmentResponse(await getPopulatedAssessment(id)));
+    return NextResponse.json(formatAssessmentResponse(await getPopulatedAssessment(id), { role }));
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : err.message === 'Forbidden' ? 403 : err.code === 11000 ? 409 : 500;
     return NextResponse.json({ message: err.message }, { status });
@@ -234,7 +242,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ message: 'Assessment ID is invalid' }, { status: 400 });
     }
 
-    const assessment = await Assessment.findById(id);
+    const assessment = await Assessment.findById(id).select('+examPassword');
     if (!assessment) return NextResponse.json({ message: 'Assessment not found' }, { status: 404 });
     const allocationCount = await SeatAllocation.countDocuments({ assessmentId: id });
     if (allocationCount) {

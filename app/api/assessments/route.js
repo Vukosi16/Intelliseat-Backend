@@ -8,6 +8,7 @@ import {
   Module,
   Venue,
   Seat,
+  SeatAllocation,
   User,
   ASSESSMENT_TYPES,
   isValidQualificationYear,
@@ -46,10 +47,24 @@ export async function GET(request) {
 
     const assessments = await Assessment.find(filter)
       .sort({ startsAt: 1 })
+      .select('+examPassword')
       .populate('moduleId', 'code name')
       .populate('venueId', 'name');
 
-    return NextResponse.json(assessments.map(formatAssessmentResponse));
+    const expulsionByAssessment = role === 'student'
+      ? new Map(
+        (await SeatAllocation.find({
+          studentId: userId,
+          assessmentId: { $in: assessments.map((assessment) => assessment._id) },
+          status: 'expelled',
+        }).select('assessmentId').lean()).map((allocation) => [String(allocation.assessmentId), true])
+      )
+      : new Map();
+
+    return NextResponse.json(assessments.map((assessment) => ({
+      ...formatAssessmentResponse(assessment, { role }),
+      isExpelled: expulsionByAssessment.get(String(assessment._id)) === true,
+    })));
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : err.code === 11000 ? 409 : 500;
     return NextResponse.json({ message: err.message }, { status });
@@ -78,6 +93,7 @@ export async function POST(request) {
       endsAt,
       venueId,
       instructions,
+      examPassword,
     } = body || {};
 
     if (
@@ -92,6 +108,7 @@ export async function POST(request) {
       || (moduleName !== undefined && typeof moduleName !== 'string')
       || (qualification !== undefined && typeof qualification !== 'string')
       || (instructions !== undefined && typeof instructions !== 'string')
+      || (examPassword !== undefined && typeof examPassword !== 'string')
     ) {
       return NextResponse.json(
         { message: 'A module name, name, startsAt, endsAt, and venueId are required' },
@@ -133,6 +150,9 @@ export async function POST(request) {
       : selectedModule?.year;
     if (!isValidQualificationYear(resolvedQualification, resolvedQualificationYear)) {
       return NextResponse.json({ message: 'A valid qualification and year are required' }, { status: 400 });
+    }
+    if (type === 'Exam' && !examPassword?.trim()) {
+      return NextResponse.json({ message: 'An exam password is required for exams' }, { status: 400 });
     }
 
     if (shouldCreateModule) {
@@ -220,6 +240,7 @@ export async function POST(request) {
       venueId,
       invigilatorIds: [],
       instructions: instructions ? instructions.trim() : undefined,
+      examPassword: examPassword?.trim() || undefined,
       createdBy: userId,
     });
 
@@ -232,10 +253,11 @@ export async function POST(request) {
     });
 
     const populated = await Assessment.findById(assessment._id)
+      .select('+examPassword')
       .populate('moduleId', 'code name')
       .populate('venueId', 'name');
 
-    return NextResponse.json(populated, { status: 201 });
+    return NextResponse.json(formatAssessmentResponse(populated, { role }), { status: 201 });
   } catch (err) {
     const status = err.message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json({ message: err.message }, { status });

@@ -8,6 +8,7 @@ const assessmentSchema = new Schema(
     qualificationYear: { type: Number, min: 1, max: 4 },
     name: { type: String, required: true, trim: true }, // "Systems Design" or "Test 1"
     type: { type: String, enum: ASSESSMENT_TYPES },
+    examPassword: { type: String, trim: true, select: false },
 
     // Real date-times. The admin form sends a date plus start and end times (Africa/Johannesburg)
     // and the server converts them (see lib/time.js).
